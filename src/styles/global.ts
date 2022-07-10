@@ -8,12 +8,13 @@ export const GlobalStyle = createGlobalStyle`
   }
 
   :focus {
-    outline: none;
+    outline: 0;
     box-shadow: 0 0 0 2px ${({ theme }) => theme.colors.green[500]};
   }
 
   body {
-    background: #333;
+    background: ${({ theme }) => theme.colors.gray[900]};
+    color: ${({ theme }) => theme.colors.gray[300]};
   }
 
   body, input, textarea, button {
