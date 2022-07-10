@@ -1,13 +1,13 @@
-import { ButtonHTMLAttributes } from "react";
+import { ButtonHTMLAttributes } from 'react'
 
-import { ButtonVariant, Container } from "./Button.styles";
+import { ButtonVariant, Container } from './Button.styles'
 
 interface IButtonProps extends ButtonHTMLAttributes<HTMLButtonElement> {
-  variant?: ButtonVariant;
+  variant?: ButtonVariant
 }
 
 export function Button({
-  variant = "primary",
+  variant = 'primary',
   children,
   ...props
 }: IButtonProps) {
@@ -15,5 +15,5 @@ export function Button({
     <Container variant={variant} {...props}>
       {children}
     </Container>
-  );
+  )
 }
