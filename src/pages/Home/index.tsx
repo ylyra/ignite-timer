@@ -1,30 +1,23 @@
 import { zodResolver } from "@hookform/resolvers/zod";
 import { differenceInSeconds } from "date-fns";
 import { HandPalm, Play } from "phosphor-react";
-import { useCallback, useEffect, useState } from "react";
-import { SubmitHandler, useForm } from "react-hook-form";
+import {
+  createContext,
+  useCallback,
+  useContext,
+  useEffect,
+  useState,
+} from "react";
+import { FormProvider, SubmitHandler, useForm } from "react-hook-form";
 import { z } from "zod";
+import { Countdown } from "./components/Countdown";
+import { NewCycleForm } from "./components/NewCycleForm";
 
 import {
-  CountdownContainer,
-  FormContainer,
   HomeContainer,
-  MinutesAmountInput,
-  Separator,
   StartCountdownButton,
   StopCountdownButton,
-  TaskInput,
 } from "./styles";
-
-const newTaskFormSchema = z.object({
-  task: z.string().min(1, "Task must be at least 1 character long."),
-  minutes: z
-    .number()
-    .min(1, "Minutes must be at least 1.")
-    .max(60, "Minutes must be at most 60."),
-});
-
-type NewTaskFormData = z.infer<typeof newTaskFormSchema>;
 
 interface CycleProps {
   id: string;
@@ -35,33 +28,43 @@ interface CycleProps {
   finishedDate?: Date;
 }
 
-let currentCycleInterval: NodeJS.Timeout;
+interface CyclesContextProps {
+  activeCycle?: CycleProps;
+  cycles: CycleProps[];
+  activeCycleId: string;
+  markCurrentCycleAsFinished: () => void;
+
+  amountSecondsPassed: number;
+  changeSecondsPassed: (amount: number) => void;
+}
+
+const newTaskFormSchema = z.object({
+  task: z.string().min(1, "Task must be at least 1 character long."),
+  minutes: z
+    .number()
+    .min(1, "Minutes must be at least 1.")
+    .max(60, "Minutes must be at most 60."),
+});
+
+export type NewTaskFormData = z.infer<typeof newTaskFormSchema>;
+
+const CyclesContext = createContext({} as CyclesContextProps);
+export const useCycles = () => useContext(CyclesContext);
 
 export function Home() {
   const [cycles, setCycles] = useState<CycleProps[]>([]);
   const [activeCycleId, setActiveCycleId] = useState("");
-  const [amountSecondsPassed, setAmountSecondsPassed] = useState(0);
-
   const activeCycle = cycles.find((cycle) => cycle.id === activeCycleId);
-  const totalSeconds = activeCycle ? activeCycle.minutes * 60 : 0;
-  const currentSeconds = activeCycle ? totalSeconds - amountSecondsPassed : 0;
-
-  const minutesAmountLeft = Math.floor(currentSeconds / 60);
-  const secondsAmountLeft = currentSeconds % 60;
-
-  const minutes = String(minutesAmountLeft).padStart(2, "0");
-  const seconds = String(secondsAmountLeft).padStart(2, "0");
-
-  const { formState, handleSubmit, register, reset } = useForm<NewTaskFormData>(
-    {
-      resolver: zodResolver(newTaskFormSchema),
-      mode: "onChange",
-      defaultValues: {
-        task: "",
-        minutes: 5,
-      },
-    }
-  );
+  const [amountSecondsPassed, setAmountSecondsPassed] = useState(0);
+  const newCycleForm = useForm<NewTaskFormData>({
+    resolver: zodResolver(newTaskFormSchema),
+    mode: "onChange",
+    defaultValues: {
+      task: "",
+      minutes: 5,
+    },
+  });
+  const { handleSubmit, formState, reset } = newCycleForm;
 
   const onTaskSubmit: SubmitHandler<NewTaskFormData> = useCallback((data) => {
     const newCycle: CycleProps = {
@@ -73,10 +76,6 @@ export function Home() {
 
     setCycles((oldCycles) => {
       const newCycles = [...oldCycles, newCycle];
-
-      if (!oldCycles.includes(newCycle)) {
-        localStorage.setItem(data.task, JSON.stringify(newCycles));
-      }
 
       return newCycles;
     });
@@ -108,85 +107,45 @@ export function Home() {
   }, []);
 
   useEffect(() => {
-    if (activeCycle) {
-      currentCycleInterval = setInterval(() => {
-        const secondsPassed = differenceInSeconds(
-          new Date(),
-          new Date(activeCycle.startDate)
-        );
-        if (secondsPassed >= totalSeconds) {
-          setCycles((oldCycles) => {
-            return oldCycles.map((cycle) => {
-              if (cycle.id === activeCycleId) {
-                return { ...cycle, finishedDate: new Date() };
-              }
+    localStorage.setItem("@ignite-timer/tasks", JSON.stringify(cycles));
+  }, [cycles]);
 
-              return cycle;
-            });
-          });
-          setActiveCycleId("");
-          setAmountSecondsPassed(0);
-          clearInterval(currentCycleInterval);
-          document.title = `Ignite Timer - Current cycle finished`;
-        } else {
-          setAmountSecondsPassed(secondsPassed);
+  const markCurrentCycleAsFinished = useCallback(() => {
+    setCycles((oldCycles) => {
+      return oldCycles.map((cycle) => {
+        if (cycle.id === activeCycleId) {
+          return { ...cycle, finishedDate: new Date() };
         }
-      }, 1000);
-    }
 
-    return () => {
-      clearInterval(currentCycleInterval);
-    };
-  }, [activeCycle, totalSeconds, activeCycleId]);
+        return cycle;
+      });
+    });
+    setActiveCycleId("");
+  }, []);
 
-  useEffect(() => {
-    if (activeCycle) {
-      document.title = `Ignite Timer - ${minutes}:${seconds}`;
-    }
-  }, [activeCycle, minutes, seconds]);
+  const changeSecondsPassed = useCallback((amount: number) => {
+    setAmountSecondsPassed(amount);
+  }, []);
 
   return (
     <HomeContainer>
       <form onSubmit={handleSubmit(onTaskSubmit)}>
-        <FormContainer>
-          <label htmlFor="task-name">I'll work on</label>
-          <TaskInput
-            id="task-name"
-            type="text"
-            placeholder="type the project name here"
-            list="task-suggestions"
-            disabled={!!activeCycle}
-            {...register("task")}
-          />
-          <datalist id="task-suggestions">
-            {cycles.map((cycle) => (
-              <option key={cycle.id} value={cycle.task} />
-            ))}
-          </datalist>
+        <CyclesContext.Provider
+          value={{
+            activeCycleId,
+            cycles,
+            activeCycle,
+            markCurrentCycleAsFinished,
 
-          <label htmlFor="task-time">for</label>
-          <MinutesAmountInput
-            id="task-time"
-            type="number"
-            min={5}
-            max={60}
-            step={5}
-            defaultValue={20}
-            disabled={!!activeCycle}
-            {...register("minutes", {
-              valueAsNumber: true,
-            })}
-          />
-          <span>minutes.</span>
-        </FormContainer>
-
-        <CountdownContainer>
-          <span>{minutes[0]}</span>
-          <span>{minutes[1]}</span>
-          <Separator>:</Separator>
-          <span>{seconds[0]}</span>
-          <span>{seconds[1]}</span>
-        </CountdownContainer>
+            amountSecondsPassed,
+            changeSecondsPassed,
+          }}
+        >
+          <FormProvider {...newCycleForm}>
+            <NewCycleForm />
+          </FormProvider>
+          <Countdown />
+        </CyclesContext.Provider>
 
         {activeCycle ? (
           <StopCountdownButton onClick={handleInterruptCycle} type="button">
