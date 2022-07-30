@@ -1,8 +1,7 @@
 import { differenceInSeconds } from "date-fns";
 import { useEffect, useState } from "react";
+import { useCycles } from "../../../../contexts/CyclesDisclosure";
 import { CountdownContainer, Separator } from "./styles";
-
-import { useCycles } from "../..";
 
 let currentCycleInterval: NodeJS.Timeout;
 
