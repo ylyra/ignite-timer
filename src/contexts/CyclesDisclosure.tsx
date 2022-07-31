@@ -1,3 +1,4 @@
+import { addMinutes, differenceInSeconds, parseISO } from "date-fns";
 import {
   createContext,
   ReactNode,
@@ -81,12 +82,42 @@ export const CyclesProvider = ({ children }: CyclesDisclosureProviderProps) => {
   useEffect(() => {
     const mostUsedTask = localStorage.getItem("@ignite-timer/tasks");
     if (mostUsedTask) {
-      setCycles(JSON.parse(mostUsedTask));
+      const savedCyles = JSON.parse(mostUsedTask) as CycleProps[];
+      setCycles(
+        savedCyles.map((cycle) => {
+          const didFinishedCycle = cycle.finishedDate || cycle.interrupetedDate;
+          let interrupetedDate = cycle.interrupetedDate;
+          if (
+            !didFinishedCycle &&
+            differenceInSeconds(
+              new Date(),
+              addMinutes(
+                parseISO(String(cycle.startDate)),
+                Number(cycle.minutes)
+              )
+            ) > 0
+          ) {
+            interrupetedDate = new Date();
+          } else {
+            setActiveCycleId(cycle.id);
+          }
+
+          return {
+            ...cycle,
+            startDate: parseISO(String(cycle.startDate)),
+            interrupetedDate: interrupetedDate,
+            minutes: Number(cycle.minutes),
+            finishedDate:
+              cycle.finishedDate && parseISO(String(cycle.finishedDate)),
+          };
+        })
+      );
     }
   }, []);
 
   useEffect(() => {
-    localStorage.setItem("@ignite-timer/tasks", JSON.stringify(cycles));
+    if (cycles.length > 0)
+      localStorage.setItem("@ignite-timer/tasks", JSON.stringify(cycles));
   }, [cycles]);
 
   const markCurrentCycleAsFinished = useCallback(() => {
